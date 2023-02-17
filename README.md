@@ -1,2 +1,2 @@
 # GameBoy
- GameBoy made by dima
+ GameBoy made by Dima
