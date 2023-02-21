@@ -48,8 +48,17 @@ void saveState(bool saveGame) {
 
 void mainMenu() {
   static int pointer = 0;
+  static int secretStage = 0;
   if (bJoyMoved) pointer = wrap(pointer + joy.y, g_State.nGames);
-  else if (buttonX.bReleased) games[pointer]();
+  else if (buttonX.bReleased) games[pointer](), secretStage = 0;
+
+  if (bJoyMoved) {
+    if (joy.x > 0 && secretStage == 0) secretStage = 1;
+    else if (joy.x > 0 && secretStage == 1) secretStage = 2;
+    else if (joy.x < 0 && secretStage == 2) secretStage = 3;
+    else if (joy.x > 0 && secretStage == 3) Events::HappyBirthday::start(), secretStage = 0;
+    else if (joy != 0) secretStage = 0;
+  }
 
   oled::clear();
   gui::drawList("Games", gameNames, g_State.nGames, pointer);
