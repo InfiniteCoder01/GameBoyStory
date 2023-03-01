@@ -31,11 +31,12 @@ const uint8_t PROGMEM ballOutline[] = { 0x70, 0x88, 0x88, 0x88, 0x70 };
 const int treeWidths[] = { 16, 26, 34 };
 #pragma endregion ART
 #pragma region Util
+
+#pragma region Bezier
 namespace Bezier {
 const float SCALE = 1.f, RESOLUTION = 0.02f;
 vec2f ptr;
 
-#pragma region Implementation
 struct Command {
   virtual void invoke(float t) = 0;
 };
@@ -83,10 +84,12 @@ void draw(Command** path, uint32_t nCommands, float t) {
     if (t <= 0) break;
   }
 }
-#pragma endregion Implementation
 }
+#pragma endregion Bezier
+
 #pragma endregion Util
 
+#pragma region HappyBirthday
 namespace HappyBirthday {
 #pragma region Data
 Bezier::Command* path[] = {
@@ -577,6 +580,272 @@ void start() {
   t = -1;
   Bezier::ptr = vec2f(-30, -10);
   game = Game(update, draw);
+}
+}
+#pragma endregion HappyBirthday
+
+namespace Feb23 {
+#pragma region Data
+vec2f two[] = {
+  vec2f(20, 35),
+  vec2f(14.5984, 35.6),
+  vec2f(8.7468, 35.6),
+  vec2f(2.8952, 35.6),
+  vec2f(-2.9564, 35.6),
+  vec2f(-8.8079, 35.6),
+  vec2f(-14.6595, 35.6),
+  vec2f(-20.2063, 35.2433),
+  vec2f(-20.3657, 29.4057),
+  vec2f(-19.3996, 23.6438),
+  vec2f(-17.2409, 18.216),
+  vec2f(-14.2033, 13.2214),
+  vec2f(-10.4774, 8.7135),
+  vec2f(-6.3952, 4.5228),
+  vec2f(-2.0793, 0.5716),
+  vec2f(2.2141, -3.4043),
+  vec2f(6.2941, -7.5941),
+  vec2f(9.6742, -12.3561),
+  vec2f(11.0507, -17.9845),
+  vec2f(9.2596, -23.4463),
+  vec2f(4.5941, -26.8495),
+  vec2f(-1.1725, -27.5726),
+  vec2f(-6.8613, -26.3219),
+  vec2f(-11.9075, -23.3878),
+  vec2f(-16.0004, -23.7574),
+  vec2f(-18.4863, -28.1826),
+  vec2f(-13.7434, -31.5978),
+  vec2f(-8.477, -34.1266),
+  vec2f(-2.7786, -35.3973),
+  vec2f(3.0635, -35.5256),
+  vec2f(8.788, -34.3927),
+  vec2f(13.9471, -31.6812),
+  vec2f(17.942, -27.4469),
+  vec2f(20.1835, -22.078),
+  vec2f(20.4311, -16.256),
+  vec2f(18.9363, -10.6225),
+  vec2f(16.0089, -5.5654),
+  vec2f(12.2761, -1.0665),
+  vec2f(8.1339, 3.0654),
+  vec2f(3.7914, 6.9872),
+  vec2f(-0.4553, 11.0126),
+  vec2f(-4.438, 15.2952),
+  vec2f(-7.8259, 20.0593),
+  vec2f(-9.9916, 25.4727),
+  vec2f(-6.4595, 27.4),
+  vec2f(-0.6079, 27.4),
+  vec2f(5.2437, 27.4),
+  vec2f(11.0952, 27.4),
+  vec2f(16.9468, 27.4),
+  vec2f(20.45, 29.7484),
+};
+
+vec2f three[] = {
+  vec2f(-21, 29.9),
+  vec2f(-18.0497, 24.5031),
+  vec2f(-13.755, 24.4447),
+  vec2f(-8.1283, 26.8929),
+  vec2f(-2.0459, 27.6942),
+  vec2f(4.0374, 26.9752),
+  vec2f(9.3247, 23.9493),
+  vec2f(12.4757, 18.7556),
+  vec2f(12.5852, 12.6665),
+  vec2f(9.7528, 7.283),
+  vec2f(4.7367, 3.7939),
+  vec2f(-1.1795, 2.1955),
+  vec2f(-7.3176, 1.9),
+  vec2f(-11.6, 0.0318),
+  vec2f(-10.8811, -5.4),
+  vec2f(-4.7311, -5.4368),
+  vec2f(1.3237, -6.4207),
+  vec2f(6.7274, -9.2829),
+  vec2f(10.2938, -14.2096),
+  vec2f(10.7726, -20.2568),
+  vec2f(7.6586, -25.4295),
+  vec2f(2.2028, -28.1391),
+  vec2f(-3.9183, -28.3716),
+  vec2f(-9.8549, -26.8622),
+  vec2f(-15.1876, -23.8295),
+  vec2f(-18.1985, -28.4863),
+  vec2f(-16.0482, -32.4982),
+  vec2f(-10.4306, -34.993),
+  vec2f(-4.4356, -36.3036),
+  vec2f(1.7064, -36.4225),
+  vec2f(7.7375, -35.2987),
+  vec2f(13.1878, -32.5035),
+  vec2f(17.429, -28.096),
+  vec2f(19.7776, -22.4515),
+  vec2f(19.9089, -16.3313),
+  vec2f(17.9638, -10.5394),
+  vec2f(13.9391, -5.9279),
+  vec2f(8.8631, -2.6763),
+  vec2f(14.2936, 0.1779),
+  vec2f(18.7075, 4.4258),
+  vec2f(21.4706, 9.8846),
+  vec2f(22.1861, 15.9644),
+  vec2f(21.0486, 21.9852),
+  vec2f(18.2036, 27.4119),
+  vec2f(13.7958, 31.6628),
+  vec2f(8.3451, 34.4638),
+  vec2f(2.3368, 35.7166),
+  vec2f(-3.8068, 35.843),
+  vec2f(-9.893, 35.0134),
+  vec2f(-15.6848, 32.9732),
+};
+
+vec2f star[] = {
+  vec2f(18.4205, 28.4515),
+  vec2f(14.7353, 26.5137),
+  vec2f(11.0502, 24.5759),
+  vec2f(7.365, 22.6381),
+  vec2f(3.6799, 20.7003),
+  vec2f(-0.0053, 18.7644),
+  vec2f(-3.6906, 20.702),
+  vec2f(-7.3759, 22.6395),
+  vec2f(-11.0612, 24.577),
+  vec2f(-14.7465, 26.5145),
+  vec2f(-18.4308, 28.4505),
+  vec2f(-17.7267, 24.3469),
+  vec2f(-17.0226, 20.2433),
+  vec2f(-16.3185, 16.1397),
+  vec2f(-15.6144, 12.0361),
+  vec2f(-14.9103, 7.9325),
+  vec2f(-17.8902, 5.0256),
+  vec2f(-20.8716, 2.1192),
+  vec2f(-23.8529, -0.7872),
+  vec2f(-26.8342, -3.6936),
+  vec2f(-29.8155, -6.6),
+  vec2f(-25.6976, -7.1992),
+  vec2f(-21.5772, -7.7976),
+  vec2f(-17.4569, -8.3961),
+  vec2f(-13.3365, -8.9945),
+  vec2f(-9.2161, -9.5929),
+  vec2f(-7.3715, -13.3235),
+  vec2f(-5.5291, -17.0573),
+  vec2f(-3.6867, -20.7911),
+  vec2f(-1.8443, -24.5248),
+  vec2f(-0.0019, -28.2586),
+  vec2f(1.841, -24.5329),
+  vec2f(3.684, -20.7994),
+  vec2f(5.5269, -17.0659),
+  vec2f(7.3699, -13.3324),
+  vec2f(9.2128, -9.5989),
+  vec2f(13.3298, -8.9958),
+  vec2f(17.4502, -8.3971),
+  vec2f(21.5705, -7.7985),
+  vec2f(25.6908, -7.1999),
+  vec2f(29.8111, -6.6013),
+  vec2f(26.8334, -3.6956),
+  vec2f(23.8524, -0.7888),
+  vec2f(20.8714, 2.118),
+  vec2f(17.8905, 5.0247),
+  vec2f(14.9101, 7.9317),
+  vec2f(15.6122, 12.0356),
+  vec2f(16.3143, 16.1396),
+  vec2f(17.0163, 20.2436),
+  vec2f(17.7184, 24.3475),
+};
+#pragma endregion Data
+
+struct Particle;
+extern LinkedList<Particle> particles;
+
+struct Particle {
+  vec2f pos, vel;
+  uint16_t color;
+  uint8_t rocket;
+  float lifetime;
+  vec2f trail[5];
+
+  Particle() = default;
+  Particle(vec2f pos, vec2f vel, uint16_t color, uint8_t rocket, float lifetime = 1.f)
+    : pos(pos), vel(vel), color(color), rocket(rocket), lifetime(lifetime) {
+    for (auto& node : trail) node = pos;
+  }
+
+  void update() {
+    pos += vel * deltaTime;
+    if (rocket == 0) {
+      vel *= 0.8;
+      lifetime -= deltaTime;
+      vel.y += deltaTime * 100.f * (1.f / max(lifetime / 8.f, 1.f));
+    } else vel.y += deltaTime * 420.f;
+
+    if ((pos - trail[0]).sqrMagnitude() >= 1.f) {
+      for (int i = sizeof(trail) / sizeof(trail[0]) - 2; i >= 0; i--) {
+        trail[i + 1] = trail[i];
+      }
+      trail[0] = pos;
+    }
+
+    if (rocket > 0 && vel.y >= 0) {
+      if (rocket == 1) {
+        for (int i = 0; i < 120; i++) {
+          float ang = random(M_PI * 2 * 100) / 100.f;
+          particles.add(Particle(pos, vec2f(sin(ang), cos(ang)) * random(160), color, 0, lifetime));
+        }
+      } else if (rocket == 2) {
+        for (const auto& vel : two) {
+          particles.add(Particle(pos, vel * 2.f, color, 0, lifetime));
+        }
+      } else if (rocket == 3) {
+        for (const auto& vel : three) {
+          particles.add(Particle(pos, vel * 2.f, color, 0, lifetime));
+        }
+      } else if (rocket == 4) {
+        for (const auto& vel : star) {
+          particles.add(Particle(pos, vel * 2.f, color, 0, lifetime));
+        }
+      }
+    }
+  }
+
+  void draw() {
+    const float TRAIL_LENGTH = sizeof(trail) / sizeof(trail[0]);
+    for (int i = 0; i < TRAIL_LENGTH; i++) {
+      uint16_t nodeColor = oled::interpolateColor(color, 0x312B, i / TRAIL_LENGTH);
+      if (rocket > 0) oled::fillRect(trail[i] - 1, 3, nodeColor);
+      else oled::fillRect(trail[i], 1, oled::interpolateColor(0x312B, nodeColor, min(lifetime, 1.f)));
+    }
+  }
+
+  bool done() {
+    if (!inRange<vec2f>(pos, -5, oled::size() + 5)) return true;
+    if (rocket > 0) return vel.y >= 0;
+    else return lifetime < 0;
+  }
+};
+
+LinkedList<Particle> particles;
+
+void update() {
+  static float t;
+  static bool enabled = false;
+  if (buttonX.bPressed) {
+    enabled = true;
+    particles.clear();
+    particles.add(Particle(vec2f(oled::width / 3, oled::height), vec2f(0, -random(260, 300)), random(0xffff + 1), 2, 30.f));
+    particles.add(Particle(vec2f(oled::width / 3 * 2, oled::height), vec2f(0, -random(260, 300)), random(0xffff + 1), 3, 30.f));
+  }
+  if (enabled) {
+    t += deltaTime;
+    if (t >= 0.5f) particles.add(Particle(vec2f(random(10, oled::width - 10), oled::height), vec2f(0, -random(240, 320)), random(0xffff + 1), random(2) ? 1 : 4)), t = 0;
+  }
+
+  for (int i = 0; i < particles.size(); i++) {
+    particles[i].update();
+    if (particles[i].done()) particles.remove(i--);
+  }
+}
+
+void draw() {
+  oled::fillScreen(0x312B);
+  oled::drawImage(0, 103, 128, 25, snowT, MAGENTA);
+  for (int i = 0; i < particles.size(); i++) particles[i].draw();
+}
+
+void start() {
+  game = Game(update, draw);
+  particles.clear();
 }
 }
 };

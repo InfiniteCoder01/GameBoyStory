@@ -1,4 +1,4 @@
-# GameBoy
- GameBoy made by Dima
+# GameBoyStory
+ GameBoyStory - GameBoy made by Dima
 
-# Custom Story Mario Game soon!
+# Custom "The Story of [I don't know what to put there yet...]" Game soon!

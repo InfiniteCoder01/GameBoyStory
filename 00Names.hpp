@@ -147,12 +147,16 @@ void start();
 #pragma region StoryNeeds
 const int MARIO_ATLAS_INDEX = 1;
 namespace Mario {
+extern TileEngine::Atlas* atlases;
 void load();
 }
 #pragma endregion StoryNeeds
 #pragma region Events
 namespace Events {
 namespace HappyBirthday {
+void start();
+}
+namespace Feb23 {
 void start();
 }
 }
