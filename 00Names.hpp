@@ -1,6 +1,7 @@
 #define SPI_SPEED 39999999
 #define TRIPPLE_BUFFER
 // #define DRAW_COLLIDERS
+#include <Arduino.h>
 
 #include <SD.h>
 #include <LinkedList.h>
@@ -74,7 +75,6 @@ struct GState {
   // Mario
   struct {
     int16_t level = 0;
-    bool princessLost = false;
   } mario;
 };
 
@@ -152,12 +152,7 @@ void load();
 }
 #pragma endregion StoryNeeds
 #pragma region Events
-namespace Events {
-namespace HappyBirthday {
+namespace Events::Easter {
 void start();
-}
-namespace Feb23 {
-void start();
-}
 }
 #pragma endregion Events
