@@ -84,6 +84,6 @@ void nextFrame() {
   UI::drawChat();
 
   while (writeState != WriteState::SWAPPING) yield();
-  saveState();
+  fileIO();
   writeState = WriteState::WRITING;
 }

@@ -25,25 +25,28 @@ void load() {
 
   Mario::load();
 
-  file = SD.open(savepath + "/scripts.dat", FILE_READ);
-  while (file.available()) Script::addThread(scriptBank[(int)read<uint32_t>(file)]);
-  file.close();
+  // file = SD.open(savepath + "/scripts.dat", FILE_READ); // TODO: !
+  // while (file.available()) Script::addThread(scriptBank[(int)read<uint32_t>(file)]);
+  // file.close();
 
   game = gameSelect;
 }
 
-void saveState(bool saveGame) {
+void saveState() {
+  File file = SD.open(savepath + "/progress.dat", FILE_WRITE);
+  write<GState>(file, g_State);
+  file.close();
+  // Script::save();
+  if (game.save) game.save();
+}
+
+void fileIO() {
   static uint32_t timer;  // Auto Save
-  bool autosave = false;
-  if (millis() - timer > 10000 || saveGame) {
+  if (millis() - timer > 10000) {
     timer = millis();
-    File file = SD.open(savepath + "/progress.dat", FILE_WRITE);
-    write<GState>(file, g_State);
-    file.close();
-    Script::save();
-    autosave = true;
+    saveState();
   }
-  if (game.save) game.save(autosave);
+  if (game.fileIO) game.fileIO();
 }
 
 void mainMenu() {
@@ -56,7 +59,7 @@ void mainMenu() {
     if (joy.x > 0 && secretStage == 0) secretStage = 1;
     else if (joy.x > 0 && secretStage == 1) secretStage = 2;
     else if (joy.x < 0 && secretStage == 2) secretStage = 3;
-    else if (joy.x > 0 && secretStage == 3) /*Events::HappyBirthday::start(), */secretStage = 0;
+    else if (joy.x > 0 && secretStage == 3) /*Events::HappyBirthday::start(), */ secretStage = 0;
     else if (joy != 0) secretStage = 0;
   }
 

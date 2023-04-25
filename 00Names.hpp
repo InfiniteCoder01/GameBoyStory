@@ -16,6 +16,7 @@ using namespace VectorMath;
 
 using Function = void (*)();
 
+#pragma region Utils
 template<typename M, typename N> struct Pair {
   Pair() = default;
   Pair(M first, N second)
@@ -27,16 +28,24 @@ template<typename M, typename N> struct Pair {
 
 String format(const char* format, ...);
 
-template<typename T> static T read(File& file) {
+template<typename T> inline T read(File& file) {
   T value;
   file.read((uint8_t*)&value, sizeof(value));
   return value;
 }
 
-template<typename T> static void write(File& file, const T& value) {
+template<typename T> inline void write(File& file, const T& value) {
   file.write((uint8_t*)&value, sizeof(value));
 }
 
+inline String readstr(File& file) {
+  return file.readString();
+}
+
+inline void writestr(File& file, const String& str) {
+  file.write((uint8_t*)str.c_str(), str.length() + 1);
+}
+#pragma endregion Utils
 #pragma region API
 struct Button {
   Button() {}
@@ -54,11 +63,10 @@ extern Button buttonX, buttonY;
 extern float deltaTime;
 
 struct Game {
-  Function update, draw;
-  void (*save)(bool saveGame);
+  Function update, draw, fileIO, save;
 
-  Game(Function update = nullptr, Function draw = nullptr, void (*save)(bool saveGame) = nullptr)
-    : update(update), draw(draw), save(save) {}
+  Game(Function update = nullptr, Function draw = nullptr, Function save = nullptr, Function fileIO = nullptr)
+    : update(update), draw(draw), fileIO(fileIO), save(save) {}
 };
 extern Game game;
 
@@ -80,7 +88,8 @@ struct GState {
 
 extern GState g_State;
 
-void saveState(bool saveGame = false);
+void fileIO();
+void saveState();
 void load();
 extern Game gameSelect;
 #pragma endregion Menu
