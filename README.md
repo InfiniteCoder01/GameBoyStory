@@ -1,4 +1,4 @@
 # GameBoyStory
  GameBoyStory - GameBoy made by Dima
 
-# Custom "The Story of [I don't know what to put there yet...]" Game soon!
+ Uses https://github.com/InfiniteCoder01/BufferedOreonSSD1351

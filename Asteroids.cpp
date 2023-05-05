@@ -32,8 +32,8 @@ const float BOOM_TIME = 0.25f;
 
 uint16_t spawnRate, asteroidSpeed, tankSpeed, fireRate, score, baseHealth;
 float baseDamagedTimer;
-LinkedList<vec2f> bullets, asteroids;
-LinkedList<Pair<vec2i, float>> booms;
+Vector<vec2f> bullets, asteroids;
+Vector<Pair<vec2i, float>> booms;
 vec2f pos, basep;
 
 enum class GameState {
@@ -51,7 +51,7 @@ bool allInPlace() {
 }
 
 void killAll() {
-  for (int j = 0; j < asteroids.size(); j++) booms.add(Pair<vec2i, float>(asteroids[j], BOOM_TIME));
+  for (int j = 0; j < asteroids.size(); j++) booms.push_back(Pair<vec2i, float>(asteroids[j], BOOM_TIME));
   asteroids.clear();
   bullets.clear();
 }
@@ -75,14 +75,14 @@ void update() {
       spawnRate = 300;
       asteroidSpeed = 40;
     } else {
-      asteroids.add(vec2f(random(oled::width - 16), -16));
+      asteroids.push_back(vec2f(random(oled::width - 16), -16));
       spawnTimer = millis();
     }
   }
 
   for (int i = 0; i < asteroids.size(); i++) {
     asteroids[i].y += deltaTime * asteroidSpeed;
-    if (asteroids[i].y > oled::height) asteroids.remove(i--);
+    if (asteroids[i].y > oled::height) asteroids.erase(i--);
     else {
       if (pos + 16 > asteroids[i] && pos < asteroids[i] + 16) gameOver();
       for (int j = 0; j < bullets.size(); j++) {
@@ -94,9 +94,9 @@ void update() {
             asteroidSpeed = min(asteroidSpeed + 5, MAX_ASTEROID_SPEED);
             spawnRate = max(spawnRate - 100, MIN_ASTEROID_INTERVAL);
           }
-          booms.add(Pair<vec2i, float>(asteroids[i], BOOM_TIME));
-          asteroids.remove(i--);
-          bullets.remove(j);
+          booms.push_back(Pair<vec2i, float>(asteroids[i], BOOM_TIME));
+          asteroids.erase(i--);
+          bullets.erase(j);
           break;
         }
       }
@@ -122,16 +122,16 @@ void update() {
   if (gameState == GameState::EXPLORE) pos.y = constrain(pos.y + playerVelocity.y * deltaTime, 0, oled::height - 16);
   if (buttonX.bPressed) bulletTimer = millis() - fireRate - 1;
   if (buttonX.bHeld && (gameState == GameState::ASTEROIDS || gameState == GameState::BOSS_FIGHT) && millis() - bulletTimer > fireRate) {
-    bullets.add(pos + vec2f(8, 0));
+    bullets.push_back(pos + vec2f(8, 0));
     bulletTimer = millis();
   }
   if (buttonY.bReleased) game = gameSelect;
 
   for (int i = 0; i < bullets.size(); i++) {
     bullets[i].y -= deltaTime * 70;
-    if (bullets[i].y < 0) bullets.remove(i--);
+    if (bullets[i].y < 0) bullets.erase(i--);
     else if (gameState == GameState::BOSS_FIGHT && bullets[i] >= basep && bullets[i] <= basep + 32) {
-      bullets.remove(i--);
+      bullets.erase(i--);
       if (allInPlace()) {
         baseHealth--;
         baseDamagedTimer = 0.1;
@@ -143,20 +143,20 @@ void update() {
 #pragma region GameOverAndWin
   for (int i = 0; i < booms.size(); i++) {
     booms[i].second -= deltaTime;
-    if (booms[i].second < 0) booms.remove(i--);
+    if (booms[i].second < 0) booms.erase(i--);
   }
 
   if (winTimer > 0) {  // Win Animation
     winTimer = max(winTimer - deltaTime, 0.f);
     if (int((winTimer + deltaTime) * 16) != int(winTimer * 16)) {
-      booms.add(Pair<vec2i, float>(basep + vec2i(random(32), random(32)) - 8, BOOM_TIME));
+      booms.push_back(Pair<vec2i, float>(basep + vec2i(random(32), random(32)) - 8, BOOM_TIME));
     }
     if (winTimer <= 0) gameState = GameState::EXPLORE;
   }
   if (gameOverTimer > 0) {  // Game Over Animation
     gameOverTimer -= deltaTime;
     if (int((gameOverTimer + deltaTime) * 16) != int(gameOverTimer * 16) && gameOverTimer > 0.5) {
-      booms.add(Pair<vec2i, float>(pos + vec2i(random(16), random(16)) - 8, BOOM_TIME));
+      booms.push_back(Pair<vec2i, float>(pos + vec2i(random(16), random(16)) - 8, BOOM_TIME));
     }
     if (gameOverTimer <= 0) return start();
   }
@@ -165,11 +165,11 @@ void update() {
 
 void draw() {
   oled::clear();
-  for (int i = 0; i < bullets.size(); i++) oled::fillRect(bullets[i] - 1, vec2i(3), WHITE);
-  for (int i = 0; i < asteroids.size(); i++) oled::drawImage(asteroids[i], vec2i(16), asteroid, MAGENTA);
+  for (auto& bullet : bullets) oled::fillRect(bullet - 1, vec2i(3), WHITE);
+  for (auto& pos : asteroids) oled::drawImage(pos, vec2i(16), asteroid, MAGENTA);
   if (gameState == GameState::BOSS_FIGHT || gameState == GameState::EXPLORE) oled::drawImage(basep, vec2i(32), baseDamagedTimer ? baseDamage : base, MAGENTA);
   if (gameState != GameState::DEATH || gameOverTimer > 1) oled::drawImage(pos, vec2i(16, 16), tank, MAGENTA);
-  for (int i = 0; i < booms.size(); i++) oled::drawImage(booms[i].first, vec2i(16), boom + 16 * 16 * 2 * (booms[i].second < 0.15), MAGENTA);
+  for (auto boomE : booms) oled::drawImage(boomE.first, vec2i(16), boom + 16 * 16 * 2 * (boomE.second < 0.15), MAGENTA);
   oled::setCursor(0, 0);
   oled::println(format("%d", score));
   if (tankSpeed == MAX_TANK_SPEED && asteroidSpeed == MAX_ASTEROID_SPEED && spawnRate == MIN_ASTEROID_INTERVAL && fireRate == MIN_FIRE_INTERVAL) gui::rightText("Death screen!");

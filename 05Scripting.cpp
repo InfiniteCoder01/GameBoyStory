@@ -3,24 +3,23 @@
 namespace Script {
 #pragma region Nodes
 Node::Node() {
-  scriptBank.add(this);
+  scriptBank.push_back(this);
 }
 
 /*          DIALOG          */
 Dialog* Dialog::answer(String answer, Node* action) {
-  answers.add(answer);
-  actions.add(action);
+  answers.push_back(answer);
+  actions.push_back(action);
   return this;
 }
 
 void Dialog::run() {
-  UI::openDialog(title, answers);
+  UI::dialog = UI::Dialog(title, answers);
 }
 
 bool Dialog::update() {
-  if (UI::choosed) {
-    next = actions[UI::choose];
-    UI::dialog = false;
+  if (UI::dialog.choosed) {
+    next = actions[UI::dialog.choice];
     return true;
   }
   return false;
@@ -33,10 +32,10 @@ struct Thread {
   Thread(Node* head = nullptr)
     : ptr(nullptr), head(head) {}
 };
-LinkedList<Thread> threads(0, Thread());
+Vector<Thread> threads(0, Thread());
 
 void addThread(Node* head) {
-  threads.add(Thread(head));
+  threads.push_back(Thread(head));
 }
 
 void update() {
@@ -47,7 +46,7 @@ void update() {
       if (next) {
         threads[i].ptr = next;
         next->run();
-      } else threads.remove(i--);
+      } else threads.erase(i--);
     }
   }
 }
@@ -66,7 +65,13 @@ void save() {
   }
   file.close();
 }
+
+void load() {
+  File file = SD.open(savepath + "/scripts.dat", FILE_READ);
+  while (file.available()) Script::addThread(scriptBank[(int)read<uint32_t>(file)]);
+  file.close();
+}
 #pragma endregion Manager
 }
 
-LinkedList<ScriptNode*> scriptBank;
+Vector<ScriptNode*> scriptBank;

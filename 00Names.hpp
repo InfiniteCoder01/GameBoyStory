@@ -1,31 +1,28 @@
+#include "OreonContainer.hpp"
 #define SPI_SPEED 39999999
 #define TRIPPLE_BUFFER
 // #define DRAW_COLLIDERS
 #include <Arduino.h>
 
 #include <SD.h>
-#include <LinkedList.h>
 #include <OreonBSSD1351.hpp>
 #include <OreonBSSD1351Gui.hpp>
 #include <OreonBSSD1351Tile.hpp>
 #include <stdlib.h>
 #include <stdint.h>
 
+#undef min
+#undef max
+#undef abs
+#undef round
+
 using namespace Math;
+using namespace Container;
 using namespace VectorMath;
 
 using Function = void (*)();
 
 #pragma region Utils
-template<typename M, typename N> struct Pair {
-  Pair() = default;
-  Pair(M first, N second)
-    : first(first), second(second) {}
-
-  M first;
-  N second;
-};
-
 String format(const char* format, ...);
 
 template<typename T> inline T read(File& file) {
@@ -39,11 +36,37 @@ template<typename T> inline void write(File& file, const T& value) {
 }
 
 inline String readstr(File& file) {
-  return file.readString();
+  String str = "";
+  while (true) {
+    char c = file.read();
+    if (c == '\0') break;
+    str += c;
+  }
+  return str;
 }
 
-inline void writestr(File& file, const String& str) {
+static void writestr(File& file, const String& str) {
   file.write((uint8_t*)str.c_str(), str.length() + 1);
+}
+
+template<typename T> inline void writeProperty(File& file, const T& value, String label) {
+  writestr(file, label);
+  write<T>(file, value);
+}
+
+static void removeDirectory(String path) {
+  File dir = SD.open(path);
+
+  dir.rewindDirectory();
+  while (File entry = dir.openNextFile()) {
+    auto name = entry.name();
+    entry.close();
+    if (entry.isDirectory()) removeDirectory(path + '/' + name);
+    else SD.remove(path + name);
+  }
+
+  dir.close();
+  SD.rmdir(path);
 }
 #pragma endregion Utils
 #pragma region API
@@ -80,9 +103,16 @@ extern String savepath;
 struct GState {
   uint8_t nGames = 3;
 
+  enum MainQuest : uint16_t {
+    GetMower
+  };
+
   // Mario
   struct {
+    uint32_t balance = 2000;
     int16_t level = 0;
+    MainQuest state = GetMower;
+    VectorMap<String, uint32_t> inventory;
   } mario;
 };
 
@@ -95,10 +125,25 @@ extern Game gameSelect;
 #pragma endregion Menu
 #pragma region UI
 namespace UI {
-extern bool dialog, choosed;
-extern uint16_t choose;
+void drawCanvas();
+void setCanvasText();
+void resetText();
 
-void openDialog(String title, LinkedList<String> answers);
+struct Dialog {
+  String title;
+  Vector<String> answers;
+
+  bool active = false, choosed = false;
+  uint16_t choice = 0;
+
+  Dialog() = default;
+  Dialog(const String& title, const Vector<String>& answers);
+  Dialog(const String& title, const String* answers, uint32_t count);
+
+  void draw();
+};
+
+extern Dialog dialog;
 void drawDialog();
 
 void sendMessage(String author, String message);
@@ -119,26 +164,44 @@ struct Node {
 
 struct Dialog : public Node {
   String title;
-  LinkedList<String> answers;
-  LinkedList<Node*> actions;
+  Vector<String> answers;
+  Vector<Node*> actions;
 
   Dialog(String title)
     : Node(), title(title) {}
 
   Dialog* answer(String answer, Node* action = 0);
-  virtual void run() override;
-  virtual bool update() override;
+  void run() override;
+  bool update() override;
+};
+
+template<typename T>
+struct Set : public Node {
+  T* variable;
+  T value;
+
+  Set(T& variable, T value)
+    : Node(), variable(&variable), value(value) {}
+
+  void run() override {
+    *variable = value;
+  }
+
+  bool update() override {
+    return true;
+  }
 };
 #pragma endregion Nodes
 
 void addThread(Node* head);
 void update();
 void save();
+void load();
 }
 
 using Script::Dialog;
 using ScriptNode = Script::Node;
-extern LinkedList<ScriptNode*> scriptBank;
+extern Vector<ScriptNode*> scriptBank;
 #pragma endregion Script
 #pragma region MenuGames
 namespace Mario {
@@ -153,13 +216,13 @@ namespace Tetris {
 void start();
 }
 #pragma endregion MenuGames
-#pragma region StoryNeeds
-const int MARIO_ATLAS_INDEX = 1;
+#pragma region Story
+const int MARIO_ATLAS_INDEX = 4;
 namespace Mario {
 extern TileEngine::Atlas* atlases;
 void load();
 }
-#pragma endregion StoryNeeds
+#pragma endregion Story
 #pragma region Events
 namespace Events::Easter {
 void start();
