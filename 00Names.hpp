@@ -1,5 +1,5 @@
 #include "OreonContainer.hpp"
-#define SPI_SPEED 39999999
+#define SPI_SPEED 39999999 // 10000000
 #define TRIPPLE_BUFFER
 // #define DRAW_COLLIDERS
 #include <Arduino.h>

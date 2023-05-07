@@ -377,7 +377,9 @@ void draw() {
   if (nextLevel != -1) return;
   TileEngine::draw();
   oled::setTextColor(MAGENTA);
-  gui::textAt(format("%d$", g_State.mario.balance), 0, 0);
+  // oled::setCursor(1, 1);
+  gui::drawFPS();
+  oled::println(format("%d$", g_State.mario.balance));
   oled::setTextColor(WHITE);
   UI::dialog.draw();
   if (inventoryItem >= 0) {
