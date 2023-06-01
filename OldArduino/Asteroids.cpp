@@ -188,6 +188,6 @@ void start() {
   baseHealth = 50;
   gameState = GameState::ASTEROIDS;
   pos = vec2f(oled::width / 2.f - 8, oled::height - 16);
-  game = Game(update, draw);
+  game = { .update = update, .draw = draw };
 }
 }

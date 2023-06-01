@@ -3,7 +3,7 @@
 void mainMenu();
 String savepath = "/saves/Dev";
 GState g_State;
-Game gameSelect = Game(nullptr, mainMenu);
+Game gameSelect = { .draw = mainMenu };
 
 Function games[] = {
   Mario::start,
@@ -18,6 +18,10 @@ String gameNames[] = {
 };
 
 void load() {
+  Story::load();
+  Mario::load();
+  Script::load();
+
   File file = SD.open(savepath + "/progress.dat", FILE_READ);
   if (!file) {
     file.close();
@@ -27,29 +31,33 @@ void load() {
 
   while (file.available()) {
     String property = readstr(file);
-    if (property == "nGames") g_State.nGames = read<uint8_t>(file);
-    if (property == "mario.balance") g_State.mario.balance = read<uint32_t>(file);
-    if (property == "mario.level") g_State.mario.level = read<int16_t>(file);
-    if (property == "mario.state") g_State.mario.state = read<GState::MainQuest>(file);
-    if (property.substring(0, 16) == "mario.inventory.") g_State.mario.inventory[property.substring(16)] = read<uint32_t>(file);
+    readProperty(file, property, "nGames", g_State.nGames);
+    readProperty(file, property, "money", g_State.money);
+    readProperty(file, property, "mario.level", g_State.mario.level);
+    readProperty(file, property, "mario.speedBuf", g_State.mario.speedBuf);
+    readProperty(file, property, "mario.jumpBuf", g_State.mario.jumpBuf);
+    readProperty(file, property, "mario.flipBuf", g_State.mario.flipBuf);
+    readMap(file, property, "inventory.", g_State.inventory);
+    if (property.substring(0, 8) == "dialogs.") Story::dialogs[property.substring(8)] = scriptBank[read<uint32_t>(file)];
   }
 
   file.close();
 
-  Script::load();
-  Mario::load();
   game = gameSelect;
 }
 
 void saveState() {
   SD.mkdir(savepath);
   File file = SD.open(savepath + "/progress.dat", FILE_WRITE);
-  writeProperty(file, g_State.nGames, "nGames");
-  writeProperty(file, g_State.mario.balance, "mario.balance");
-  writeProperty(file, g_State.mario.level, "mario.level");
-  writeProperty(file, g_State.mario.state, "mario.state");
-  for (auto& entry : g_State.mario.inventory) {
-    writeProperty(file, entry.second, "mario.inventory." + entry.first);
+  writeProperty(file, "nGames", g_State.nGames);
+  writeProperty(file, "money", g_State.money);
+  writeProperty(file, "mario.level", g_State.mario.level);
+  writeProperty(file, "mario.speedBuf", g_State.mario.speedBuf);
+  writeProperty(file, "mario.jumpBuf", g_State.mario.jumpBuf);
+  writeProperty(file, "mario.flipBuf", g_State.mario.flipBuf);
+  writeMap(file, "inventory.", g_State.inventory);
+  for (const auto& dialog : Story::dialogs) {
+    writeProperty(file, "dialogs." + dialog.first, dialog.second->index);
   }
   file.close();
 

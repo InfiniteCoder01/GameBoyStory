@@ -72,6 +72,78 @@ void Dialog::draw() {
 
 Dialog dialog;
 #pragma endregion Dialog
+#pragma region ShopAndInventory
+// * Shop
+static uint32_t itemsOffset = 0, itemCount = 0;
+void openShopDialog(const String& title, std::initializer_list<String> options, uint32_t itemsOffset, uint32_t itemCount) {
+  dialog = Dialog(title, options);
+  UI::itemsOffset = itemsOffset;
+  UI::itemCount = itemCount;
+}
+
+static void updateShop() {
+  if (itemCount <= 0 || !UI::dialog.choosed) return;
+  buttonX.bPressed = false;
+
+  if (UI::dialog.choice < itemCount) {
+    uint32_t choice = UI::dialog.choice + itemsOffset;
+    if (g_State.money < shopPrices[choice]) UI::sendMessage("Mario", "I'm moneyless!");
+    else {
+      g_State.money -= shopPrices[choice];
+      g_State.inventory[shopItems[choice]]++;
+      if (game.buyItem) game.buyItem(shopItems[choice]);
+    }
+  }
+  itemCount = 0;
+}
+
+// * Inventory
+int32_t inventoryItem = -1;
+void toggleInventory() {
+  inventoryItem = inventoryItem < 0 ? 0 : -1;
+}
+
+static void drawInventory() {
+  if (inventoryItem < 0) return;
+  UI::drawCanvas();
+  UI::setCanvasText();
+
+  if (g_State.inventory.empty()) {
+    oled::println("Nothing is here yet.");
+    UI::resetText();
+    return;
+  }
+
+  uint32_t width = (oled::pageR - oled::pageX) / 11;
+  if (bJoyMoved) inventoryItem = wrap(inventoryItem + joy.x + joy.y * width, g_State.inventory.size());
+
+  auto& highlightedItem = g_State.inventory.begin()[inventoryItem];
+  oled::println(highlightedItem.first + " x" + highlightedItem.second);
+  if (buttonX.bReleased) {
+    if (game.useItem) game.useItem(highlightedItem.first);
+    highlightedItem.second--;
+    if (highlightedItem.second <= 0) g_State.inventory.erase(inventoryItem);
+  }
+
+  uint32_t index = 0;
+  vec2i redBox;
+  for (auto& item : g_State.inventory) {
+    vec2i tl = oled::getCursor() + vec2u(oled::pageX, 0);
+
+    // * Draw Items
+    if (item.first == "Coffee") TileEngine::drawTileFromAtlas(tl + TileEngine::camera, 0, 0);
+    else if (item.first == "Gold Coffee") TileEngine::drawTileFromAtlas(tl + TileEngine::camera, 1, 0);
+
+    if (index == inventoryItem) redBox = tl;
+    oled::cursorX += 11;
+    if (index % width == width - 1) oled::cursorX = 0, oled::cursorY += 11;
+    index++;
+  }
+  oled::drawRect(redBox - 1, 11, RED);
+  UI::resetText();
+}
+
+#pragma endregion ShopAndInventory
 #pragma region Chat
 struct ChatMessage {
   String author, message;
@@ -84,7 +156,7 @@ void sendMessage(String author, String message) {
   chat.push_back(ChatMessage{ .author = author, .message = message, .time = millis() });
 }
 
-void drawChat() {
+static void drawChat() {
   uint16_t chatHeight = 0;
   for (int i = 0; i < chat.size(); i++) {
     uint16_t index = 0;
@@ -109,4 +181,15 @@ void drawChat() {
   oled::setFont(font8x12);
 }
 #pragma endregion Chat
+
+void draw() {
+  drawChat();
+  oled::setTextColor(MAGENTA);
+  gui::drawFPS();
+  oled::println(format("%zu$", g_State.money));
+  oled::setTextColor(WHITE);
+  dialog.draw();
+  drawInventory();
+  updateShop();
+}
 }

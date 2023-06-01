@@ -205,6 +205,6 @@ void start() {
   gameOverAnimationTimer = 0;
   score = 0;
   timeout = 500;
-  game = Game(update, draw);
+  game = { .update = update, .draw = draw };
 }
 }

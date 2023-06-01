@@ -1,59 +1,31 @@
+#include "OreonBSSD1351Tile.hpp"
 #include "OreonBSSD1351.hpp"
 #include "00Names.hpp"
 #include "data.hpp"
 
 namespace Mario {
 int nextLevel = -1;
-void transfer(TileEngine::GameObject& object, vec2i target, uint16_t level);
 TileEngine::GameObject* mario;
+void transfer(TileEngine::GameObject& object, vec2i target, uint16_t level);
 
 #pragma region Story
 namespace Story {
-uint32_t shopStart = 0, shopLength = 0;
-
-ScriptNode* Tito_GoToToadtown;
-void load() {
-  {
-    auto whatToDo = (new Dialog("It's growing.\nI was forced to\nremove my crops."))
-                      ->answer("We need to weed it\nout!",
-                               (new Dialog("But how will you do\nit? We don't even\nhave a mower!"))
-                                 ->answer("I'll go to a\nToadtown and buy\neverything we\nmight need.",
-                                          (new Dialog("Great! I'll call\nLuigi and book\na roundtrip ticket\nfor you. Your\nseat is left."))
-                                            ->answer("")));
-
-    Tito_GoToToadtown = (new Dialog("Hey, Mario!\nDo you know, what\nis this rocky mess\nat the edges of the\nkingdom?"))
-                          ->answer("Yes, I do!", (new Dialog("Relly?\nTell me, please!"))->answer("I've lied, I don't\nactually know, what\nthis is...", whatToDo))
-                          ->answer("No, I don't.", whatToDo);
-  }
-}
-
-void update() {
-  if (shopLength > 0 && UI::dialog.choosed) {
-    buttonX.bPressed = false;
-
-    if (UI::dialog.choice < shopLength) {
-      uint32_t choice = UI::dialog.choice + shopStart;
-      if (g_State.mario.balance < shopPrices[choice]) UI::sendMessage("Mario", "I'm moneyless!");
-      else {
-        g_State.mario.balance -= shopPrices[choice];
-        g_State.mario.inventory[shopItems[choice]]++;
-      }
-    }
-    shopLength = 0;
+void useItem(const String& name) {
+  if (name == "Coffee") g_State.mario.speedBuf = GState::Mario::Buf(10.f, 2.f);
+  if (name == "Gold Coffee") {
+    g_State.mario.speedBuf = GState::Mario::Buf(20.f, 2.5f);
+    g_State.mario.jumpBuf = GState::Mario::Buf(20.f, 2.5f);
+    g_State.mario.flipBuf = 20.f;
   }
 }
 
 void interact(String name) {
-  if (name == "Tito") {
-    if (g_State.mario.state == GState::GetMower) Script::addThread(Tito_GoToToadtown);
+  if (::Story::dialogs.contains(name)) {
+    Script::addThread(::Story::dialogs[name]);
   }
 
-  if (name == "Train") {
-    if (g_State.mario.state == GState::GetMower) transfer(*mario, vec2i(12, 6), 4);
-  }
-
-  if (name == "Coffee") UI::dialog = UI::Dialog("", { "Coffee (2$)", "Gold Coffee (200$)", "Exit" }), shopStart = 0, shopLength = 2;
-  if (name == "ToadShop") UI::dialog = UI::Dialog("Welcome to my shop!", { "Coffee (2$)", "Gold Coffee (200$)", "Exit" }), shopStart = 0, shopLength = 2;
+  if (name == "Coffee") UI::openShopDialog({ "Coffee (2$)", "Gold Coffee (2000$)", "Exit" }, 0, 2);
+  if (name == "ToadShop") UI::openShopDialog("Welcome to my shop!", { "Coffee (2$)", "Gold Coffee (2000$)", "Exit" }, 0, 2);
 }
 }
 #pragma endregion Story
@@ -65,23 +37,74 @@ enum class ComponentType : uint16_t {
   ScrollLock,
   // AI
   Mario,
-  Interactible
+  Interactible,
+  Character
 };
 
-struct Mario : public TileEngine::Component {
+struct CharacterAnimator : public TileEngine::Component {
+  TileEngine::AtlasRenderer* renderer;
+
+  CharacterAnimator()
+    : TileEngine::Component() {}
+
+  void setup(TileEngine::GameObject& object) override {
+    renderer = object.getComponent<TileEngine::AtlasRenderer>((uint16_t)TileEngine::BuiltinComponents::AtlasRenderer);
+  }
+
+  void update(vec2f motion) {
+    if (motion.x != 0) {
+      renderer->flip = motion.x < 0;
+      renderer->frame += deltaTime * 16;
+      if (renderer->frame >= 4) renderer->frame = 0;
+    } else renderer->frame = 0;
+    if (motion.y < 0) renderer->frame = 4;
+  }
+};
+
+struct Character : public CharacterAnimator {
+  vec2i target;
+
+  Character(int x, int y)
+    : CharacterAnimator(), target(x, y) {}
+
+  void setup(TileEngine::GameObject& object) override {
+    CharacterAnimator::setup(object);
+    mario = &object;
+  }
+
+  void serialize(TileEngine::GameObject& object, File& file) override {
+    write(file, target);
+  }
+
+  void deserialize(TileEngine::GameObject& object, File& file) override {
+    target = read<vec2i>(file);
+    setup(object);
+  }
+
+  void update(TileEngine::GameObject& object) override {
+    if (target < 0) return;
+    vec2f velocity = target * 16 - renderer->size() - object.pos;
+    velocity.x = sign(velocity.x), velocity.y = sign(velocity.y);
+    object.pos += velocity * deltaTime * 110.f;
+    CharacterAnimator::update(velocity);
+  }
+
+  uint16_t getType() override {
+    return (uint16_t)ComponentType::Character;
+  }
+};
+
+struct Mario : public CharacterAnimator {
   vec2f velocity = 0;
   bool onGround = false;
   bool jumping = false, jumpPressed = false;
   uint32_t kayoteTime;
 
-  TileEngine::AtlasRenderer* renderer;
-
   Mario()
-    : TileEngine::Component() {}
+    : CharacterAnimator() {}
 
   void setup(TileEngine::GameObject& object) override {
-    renderer = object.getComponent<TileEngine::AtlasRenderer>((uint16_t)TileEngine::BuiltinComponents::AtlasRenderer);
-    renderer->atlas = MARIO_ATLAS_INDEX;
+    CharacterAnimator::setup(object);
     mario = &object;
   }
 
@@ -100,38 +123,51 @@ struct Mario : public TileEngine::Component {
   }
 
   void update(TileEngine::GameObject& object) override {
-    const float GRAVITY = 1.7f, JUMP = -10.f, RUN = 4.f;
-    const float ACCEL_RATE = 10.f, JUMP_CUT = 0.5f;
+    const float GRAVITY = 34.f, JUMP = -200.f, RUN = 110.f;
+    const float ACCEL_RATE = 25.f, JUMP_CUT = 0.5f;
     const float JUMP_HANG_GRAVITY_MULTIPLIER = 0.5f, JUMP_HANG_ACCELERATION_MULTIPLIER = 1.5f;
     const uint32_t KAYOTE_TIME = 100;
 
-    float speedMul = 1.f, gravityMul = 1.f;
+    float speedMul = g_State.mario.speedBuf.multiplier, gravityMul = 1.f;
+
+    object.size = TileEngine::atlases[MARIO_ATLAS_INDEX].size();
 
     if (onGround) kayoteTime = millis(), jumping = false;
-    if (millis() - kayoteTime < KAYOTE_TIME && joy.y < 0) velocity.y = JUMP, jumping = true, jumpPressed = true, gravityMul = 0.f;
+    if (millis() - kayoteTime < KAYOTE_TIME && joy.y < 0) velocity.y = JUMP * g_State.mario.jumpBuf.multiplier, jumping = true, jumpPressed = true, gravityMul = 0.f;
     if (jumpPressed && joy.y >= 0) {  // Release jump
       jumpPressed = false;
       if (jumping) velocity.y *= JUMP_CUT;
     }
-    if (jumping && abs(velocity.y) < 0.3) {  // Jump Hang
+    if (jumping && abs(velocity.y) < 120.f) {  // Jump Hang
       speedMul *= JUMP_HANG_ACCELERATION_MULTIPLIER;
       gravityMul *= JUMP_HANG_GRAVITY_MULTIPLIER;
     }
 
+    // Bufs
+    if (g_State.mario.speedBuf.timer > 0.f) g_State.mario.speedBuf.timer -= deltaTime;
+    else g_State.mario.speedBuf = GState::Mario::Buf();
+    if (g_State.mario.jumpBuf.timer > 0.f) g_State.mario.jumpBuf.timer -= deltaTime;
+    else g_State.mario.jumpBuf = GState::Mario::Buf();
+    if (g_State.mario.flipBuf > 0.f) g_State.mario.flipBuf -= deltaTime;
+    else g_State.mario.flipBuf = 0.f;
+
     float targetXVelocity = joy.x * RUN * speedMul;
     velocity.y += GRAVITY * gravityMul;
-    if (joy.x != 0) {
-      renderer->flip = joy.x < 0;
-      renderer->frame += deltaTime * 16;
-      if (renderer->frame >= 4) renderer->frame = 0;
-    } else renderer->frame = 0;
-    if (velocity.y < 0) renderer->frame = 4;
+
+    if (g_State.mario.flipBuf > 0.f && jumping && abs(velocity.y) < 150.f) {  // Jump flip
+      renderer->atlas = MARIO_ATLAS_INDEX + 1;
+      renderer->frame = map(velocity.y, -150.f, 150.f, 0, renderer->getAtlas().frames);
+    } else {
+      renderer->atlas = MARIO_ATLAS_INDEX;
+      CharacterAnimator::update(vec2f(joy.x, velocity.y));
+    }
+
     velocity.x += (targetXVelocity - velocity.x) * ACCEL_RATE * deltaTime;
-    if (abs(velocity.x) < 0.05) velocity.x = 0;
+    if (abs(velocity.x) < 1.f) velocity.x = 0;
 
     // * Move
     while (collides(object)) object.pos.y -= 0.5;
-    for (uint32_t i = 0; i < abs(velocity.x) * 2; i++) {
+    for (uint32_t i = 0; i < abs(velocity.x) * deltaTime * 2; i++) {
       object.pos.x += 0.5 * sign(velocity.x);
       if (collides(object)) {
         object.pos.x -= 0.5 * sign(velocity.x);
@@ -141,7 +177,7 @@ struct Mario : public TileEngine::Component {
     }
 
     onGround = false;
-    for (uint32_t i = 0; i < abs(velocity.y) * 2; i++) {
+    for (uint32_t i = 0; i < abs(velocity.y) * deltaTime * 2; i++) {
       object.pos.y += 0.5 * sign(velocity.y);
       if (collides(object)) {
         object.pos.y -= 0.5 * sign(velocity.y);
@@ -176,8 +212,8 @@ struct LevelTransition : public TileEngine::Component {
   }
 
   void collide(TileEngine::GameObject& object, TileEngine::GameObject& other) override {
-    if (!other.getComponent<Serialize>((uint16_t)ComponentType::Serialize)) return;
-    if (other.getComponent<Mario>((uint16_t)ComponentType::Mario) && !buttonX.bPressed) return;
+    if (!other.getComponent<Mario>((uint16_t)ComponentType::Mario)) return;
+    if (!buttonX.bPressed) return;
     transfer(other, target, index);
   }
 
@@ -233,6 +269,22 @@ struct Interactible : public TileEngine::Component {
   }
 };
 
+Character* spawnCharacter(const String& name, vec2i pos) {
+  uint16_t atlas;
+  if (name == "Luigi") atlas = LUIGI_ATLAS_INDEX;
+  auto* character = new Character(-1, -1);
+  TileEngine::spawn(pos * 16 + 16 - TileEngine::atlases[atlas].size(), { new TileEngine::AtlasRenderer(atlas), new Serialize(), new Interactible(name), character });
+  return character;
+}
+
+TileEngine::GameObject& findCharacter(const String& name) {
+  for (auto* object : TileEngine::objects) {
+    if (object->getComponent<Character>((uint16_t)ComponentType::Character)) {
+      return *object;
+    }
+  }
+}
+
 TileEngine::Component* createComponent(uint16_t type) {
   auto* component = TileEngine::createComponent(type);
   if (component) return component;
@@ -241,6 +293,7 @@ TileEngine::Component* createComponent(uint16_t type) {
   if (type == (uint16_t)ComponentType::ScrollLock) return new ScrollLock(0);
   if (type == (uint16_t)ComponentType::Mario) return new Mario();
   if (type == (uint16_t)ComponentType::Interactible) return new Interactible("");
+  if (type == (uint16_t)ComponentType::Character) return new Character(-1, -1);
   return nullptr;
 }
 
@@ -250,6 +303,7 @@ TileEngine::Component* loadComponent(uint16_t type, const uint8_t*& data) {
   if (type == (uint16_t)ComponentType::ScrollLock) return new ScrollLock(TileEngine::loadInt(data));
   if (type == (uint16_t)ComponentType::Mario) return new Mario();
   if (type == (uint16_t)ComponentType::Interactible) return new Interactible(TileEngine::loadString(data));
+  if (type == (uint16_t)ComponentType::Character) return new Character(TileEngine::loadInt(data), TileEngine::loadInt(data));
   return nullptr;
 }
 
@@ -260,6 +314,7 @@ String componentTypeToName(uint16_t type) {
   if (type == (uint16_t)ComponentType::ScrollLock) return "ScrollLock";
   if (type == (uint16_t)ComponentType::Mario) return "Mario";
   if (type == (uint16_t)ComponentType::Interactible) return "Interactible";
+  if (type == (uint16_t)ComponentType::Character) return "Character";
   return "Unknown";
 }
 
@@ -270,6 +325,7 @@ uint16_t componentNameToType(String name) {
   if (name == "ScrollLock") return (uint16_t)ComponentType::ScrollLock;
   if (name == "Mario") return (uint16_t)ComponentType::Mario;
   if (name == "Interactible") return (uint16_t)ComponentType::Interactible;
+  if (name == "Character") return (uint16_t)ComponentType::Character;
   return 0xffff;
 }
 #pragma endregion Components
@@ -355,20 +411,17 @@ void fileIO() {
 }
 #pragma endregion SaveAndLoad
 #pragma region MainLoop
-int32_t inventoryItem = -1;
 
 void load() {
   TileEngine::load(data, loadComponent);
-  Story::load();
 }
 
 void update() {
   if (nextLevel != -1) return;
-  if (!UI::dialog.active && inventoryItem < 0) TileEngine::update();
-  Story::update();
+  if (!UI::dialog.active && UI::inventoryItem < 0) TileEngine::update();
   if (buttonY.bPressed) {
-    if (savepath == "/saves/Dev") g_State.mario.balance = 2000;
-    inventoryItem = inventoryItem < 0 ? 0 : -1;
+    if (savepath == "/saves/Dev") g_State.money = 2000;
+    UI::toggleInventory();
   }
 }
 
@@ -376,41 +429,7 @@ void draw() {
   oled::fillScreen(0x04D6);
   if (nextLevel != -1) return;
   TileEngine::draw();
-  oled::setTextColor(MAGENTA);
-  // oled::setCursor(1, 1);
-  gui::drawFPS();
-  oled::println(format("%d$", g_State.mario.balance));
-  oled::setTextColor(WHITE);
-  UI::dialog.draw();
-  if (inventoryItem >= 0) {
-    UI::drawCanvas();
-    UI::setCanvasText();
-
-    uint32_t width = (oled::pageR - oled::pageX) / 11;
-    if (bJoyMoved && !g_State.mario.inventory.empty()) inventoryItem = wrap(inventoryItem + joy.x + joy.y * width, g_State.mario.inventory.size());
-
-    if (g_State.mario.inventory.empty()) oled::println("Nothing is here yet.");
-    else {
-      auto& highlightedItem = g_State.mario.inventory.begin()[inventoryItem];
-      oled::println(highlightedItem.first + " x" + highlightedItem.second);
-    }
-
-    uint32_t index = 0;
-    vec2i redBox;
-    for (auto& item : g_State.mario.inventory) {
-      vec2i tl = oled::getCursor() + vec2u(oled::pageX, 0);
-
-      if (item.first == "Coffee") TileEngine::drawTileFromAtlas(tl + TileEngine::camera, 0, 0);
-      else if (item.first == "Gold Coffee") TileEngine::drawTileFromAtlas(tl + TileEngine::camera, 1, 0);
-
-      if (index == inventoryItem) redBox = tl;
-      oled::cursorX += 11;
-      if (index % width == width - 1) oled::cursorX = 0, oled::cursorY += 11;
-      index++;
-    }
-    if (!g_State.mario.inventory.empty()) oled::drawRect(redBox - 1, 11, RED);
-    UI::resetText();
-  }
+  UI::draw();
 }
 
 void start() {
@@ -418,7 +437,96 @@ void start() {
   g_State.mario.level = -1;
   objectTransfer = Pair<TileEngine::GameObject*, uint16_t>(nullptr, 0);
 
-  game = Game(update, draw, save, fileIO);
+  game = {
+    .update = update,
+    .draw = draw,
+    .fileIO = fileIO,
+    .save = save,
+    .useItem = Story::useItem,
+  };
 }
 #pragma endregion MainLoop
 }
+
+#pragma region StoryScripts
+namespace Story {
+static ScriptNode* Tito_GoToToadtown;
+static ScriptNode* Luigi_Hello;
+ScriptNode* Root_BeginningToLuigi;
+void loadMario() {
+  Root_BeginningToLuigi = new InvokeNode([]() {
+    dialogs["Tito"] = Tito_GoToToadtown;
+  });
+  ((LinearNode*)root)
+    ->add(new WaitLevel(9))
+    ->add(new InvokeNode([]() {
+      Mario::spawnCharacter("Luigi", vec2i(10, 7));
+      dialogs["Luigi"] = Luigi_Hello;
+    }));
+
+  Tito_GoToToadtown = ([]() {
+    Dialog* whatToDo = new Dialog("");
+    auto* dialog =
+      (new Dialog("Hey, Mario!\n"
+                  "Do you know, what\n"
+                  "is this rocky mess\n"
+                  "at the edges of the\n"
+                  "kingdom?"))
+        ->answer("Yes, I do!")
+        ->answer("No, I don't.")
+        ->action(
+          (new Dialog("Relly?\n"
+                      "Tell me, please!"))
+            ->answer("I've lied, I don't\n"
+                     "actually know, what\n"
+                     "this is...")
+            ->action(whatToDo))
+        ->action(whatToDo);
+
+    // ******************************
+    whatToDo->title = "It's growing.\n"
+                      "I was forced to\n"
+                      "remove my crops.";
+    whatToDo
+      ->answer("We need to weed it\n"
+               "out!")
+      ->action(
+        (new Dialog("But how will you do\n"
+                    "it? We don't even\n"
+                    "have a mower!"))
+          ->answer("I'll go to a\n"
+                   "Toadtown and buy\n"
+                   "everything we\n"
+                   "might need.")
+          ->action(
+            (new Dialog("Great! I'll call\n"
+                        "Luigi and book\n"
+                        "a roundtrip ticket\n"
+                        "for you. Your\n"
+                        "seat is left."))
+              ->answer("")
+              ->action(nullptr)));
+
+    return dialog;
+  })();
+
+  Luigi_Hello = ([]() {
+    auto* dialog =
+      (new Dialog("Hey, Mario!\n"
+                  "Tito told me\n"
+                  "about the rocky\n"
+                  "mess. We need to\n"
+                  "stop it!"))
+        ->answer("Let's go buy a mower!")
+        ->action(new InvokeNode([]() {
+          Mario::findCharacter("Luigi").getComponent<Mario::Character>((uint16_t)Mario::ComponentType::Character)->target = vec2i(0, 7);
+        }));
+
+    ((LinearNode*)dialog->actions[0])
+      ->add(new UnimplementedScriptNode());
+
+    return dialog;
+  })();
+}
+}
+#pragma endregion StoryScripts

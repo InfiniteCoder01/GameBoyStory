@@ -3,12 +3,17 @@
 namespace Script {
 #pragma region Nodes
 Node::Node() {
+  index = scriptBank.size();
   scriptBank.push_back(this);
 }
 
 /*          DIALOG          */
-Dialog* Dialog::answer(String answer, Node* action) {
+Dialog* Dialog::answer(const String& answer) {
   answers.push_back(answer);
+  return this;
+}
+
+Dialog* Dialog::action(Node* action) {
   actions.push_back(action);
   return this;
 }
@@ -32,7 +37,8 @@ struct Thread {
   Thread(Node* head = nullptr)
     : ptr(nullptr), head(head) {}
 };
-Vector<Thread> threads(0, Thread());
+
+static Vector<Thread> threads;
 
 void addThread(Node* head) {
   threads.push_back(Thread(head));
@@ -53,22 +59,19 @@ void update() {
 
 void save() {
   File file = SD.open(savepath + "/scripts.dat", FILE_WRITE);
-  for (int i = 0; i < threads.size(); i++) {
-    uint32_t index = 0;
-    for (int j = 0; j < scriptBank.size(); j++) {
-      if (scriptBank[j] == threads[i].ptr) {
-        index = j;
-        break;
-      }
-    }
-    write<uint32_t>(file, index);
+  for (const auto& thread : threads) {
+    write<uint32_t>(file, thread.ptr->index);
   }
   file.close();
 }
 
 void load() {
   File file = SD.open(savepath + "/scripts.dat", FILE_READ);
-  while (file.available()) Script::addThread(scriptBank[(int)read<uint32_t>(file)]);
+  if (!file) {
+    addThread(Story::root);
+    return;
+  }
+  while (file.available()) addThread(scriptBank[(int)read<uint32_t>(file)]);
   file.close();
 }
 #pragma endregion Manager

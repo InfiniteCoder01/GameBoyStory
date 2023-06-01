@@ -54,7 +54,7 @@ static void draw() {
 }
 
 void start() {
-  game = Game(update, draw);
+  game = { .update = update, .draw = draw };
 }
 }
-};
+}

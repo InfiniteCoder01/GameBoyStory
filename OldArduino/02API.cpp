@@ -53,37 +53,42 @@ void updateController() {
 }
 
 enum class WriteState {
-  WRITING,   // Drawment & Logic
+  WRITING,  // Drawment & Logic
+  WAITING_TO_SWAP,
   SWAPPING,  // SD
-} writeState = WriteState::SWAPPING;
+  WAITNG_TO_WRITE
+} writeState = WriteState::WAITNG_TO_WRITE;
 
 Game game;
 
 void outputTask(void* arg) {
   while (true) {
-    vTaskDelay(1);
-    while (writeState != WriteState::WRITING) vTaskDelay(1);
+    do vTaskDelay(1);
+    while (writeState != WriteState::WRITING);
     //    audio::loop();
     oled::update();
-    writeState = WriteState::SWAPPING;
+    writeState = WriteState::WAITING_TO_SWAP;
+    while (writeState != WriteState::SWAPPING) vTaskDelay(1);
     oled::swapBuffers();
+    writeState = WriteState::WAITNG_TO_WRITE;
   }
 }
 
 void nextFrame() {
   static uint32_t t;
+  writeState = WriteState::WRITING;
+
   deltaTime = (millis() - t) / 1000.f;
   t = millis();
   if (deltaTime <= 0) deltaTime = 1.f / 60.f;
-  updateController();
 
-  writeState = WriteState::WRITING;
+  updateController();
   Script::update();
   if (game.update) game.update();
   if (game.draw) game.draw();
-  UI::drawChat();
 
-  while (writeState != WriteState::SWAPPING) yield();
+  while (writeState != WriteState::WAITING_TO_SWAP) yield();
+  writeState = WriteState::SWAPPING;
   fileIO();
-  writeState = WriteState::WRITING;
+  while (writeState != WriteState::WAITNG_TO_WRITE) yield();
 }
