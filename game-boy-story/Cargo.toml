@@ -1,0 +1,83 @@
+[package]
+name = "game-boy-story"
+version = "0.1.0"
+authors = ["InfiniteCoder <66557254+InfiniteCoder01@users.noreply.github.com>"]
+edition = "2021"
+resolver = "2"
+rust-version = "1.66"
+
+[profile.release]
+opt-level = 3
+
+[profile.dev]
+debug = true  # Symbols are nice and they don't increase the size on Flash
+opt-level = 3 # Use slightly better optimizations.
+# overflow-checks = false # Disable integer overflow checks.
+
+[features]
+default = ["std", "hal", "esp-idf-sys/native"]
+
+pio = ["esp-idf-sys/pio"]
+all = ["std", "nightly", "experimental", "embassy"]
+hal = ["esp-idf-hal", "embedded-svc", "esp-idf-svc"]
+std = [
+    "alloc",
+    "esp-idf-sys/std",
+    "esp-idf-sys/binstart",
+    "embedded-svc?/std",
+    "esp-idf-hal?/std",
+    "esp-idf-svc?/std",
+]
+alloc = ["embedded-svc?/alloc", "esp-idf-hal?/alloc", "esp-idf-svc?/alloc"]
+nightly = [
+    "embedded-svc?/nightly",
+    "esp-idf-svc?/nightly",
+] # Future: "esp-idf-hal?/nightly"
+experimental = ["embedded-svc?/experimental", "esp-idf-svc?/experimental"]
+embassy = [
+    "esp-idf-hal?/embassy-sync",
+    "esp-idf-hal?/critical-section",
+    "esp-idf-hal?/edge-executor",
+    "esp-idf-svc?/embassy-time-driver",
+    "esp-idf-svc?/embassy-time-isr-queue",
+]
+
+[dependencies]
+# ESP32 stuff
+log = { version = "*", default-features = false }
+esp-idf-sys = { version = "*", default-features = false }
+esp-idf-hal = { version = "*", optional = true, default-features = false }
+esp-idf-svc = { version = "*", optional = true, default-features = false }
+embedded-svc = { version = "*", optional = true, default-features = false }
+embedded-hal = "*"
+
+# Graphics & ECS
+ssd1351 = "*"
+embedded-graphics = { version = "*", features = ["nalgebra_support"] }
+embedded-graphics-framebuf = "*"
+hecs = { version = "*", features = ["row-serialize"] }
+
+# Math & Numbers
+nalgebra-glm = { version = "*", features = ["serde-serialize"] }
+num = "*"
+byteorder = "*"
+
+# Service
+anyhow = "*"
+downcast-rs = "*"
+getrandom = "*"
+rand = { version = "*", default-features = false, features = [
+    "std",
+    "alloc",
+    "getrandom",
+    "nightly",
+] }
+
+# Serde
+serde = "*"
+rmp-serde = "*"
+ron = "*"
+serde_json = "*"
+
+[build-dependencies]
+embuild = "*"
