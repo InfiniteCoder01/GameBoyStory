@@ -21,8 +21,11 @@ bool joyMoved = false;
 Button buttonX(PIN_X), buttonY(PIN_Y);
 float deltaTime = 1.0 / 30.0;
 
+AudioOutputI2S audioOutput(0, 1, 128);
+
 void hardwareInit() {
   Serial.begin(115200);
+  SPI.setFrequency(SPI_SPEED);
   SD.begin(4, SPI, SPI_SPEED);
   digitalWrite(4, HIGH);
   pinMode(PIN_UP, INPUT_PULLUP);
@@ -34,7 +37,7 @@ void hardwareInit() {
   oled.begin(5, 17, 16);
 }
 
-static void updateController() {
+void updateController() {
   static uint32_t t;
   yield();
   int newJoyX = digitalRead(PIN_LEFT) - digitalRead(PIN_RIGHT);

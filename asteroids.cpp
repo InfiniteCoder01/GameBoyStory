@@ -30,7 +30,7 @@ static const uint8_t PROGMEM inactivePortal[] = {
 }
 
 static uint16_t score;
-static const uint16_t DEATH_SCREEN_SCORE = 32, BOSS_SCORE = 35;
+static const uint16_t DEATH_SCREEN_SCORE = 32, BOSS_SCORE = 64;
 
 template<typename T>
 static const T progress(T start, T end) {
@@ -56,6 +56,7 @@ static bool collidesPoint(vec2i start, vec2i size, vec2i point) {
 struct Boom {
   vec2i pos;
   uint32_t start;
+  // Sound sound = Sound("/asteroids/explosion.wav");
 
   Boom() = default;
   Boom(vec2i pos)
@@ -66,6 +67,7 @@ static Vector<Boom> booms;
 static void updateBooms() {
   for (size_t i = 0; i < booms.size(); i++) {
     if (millis() - booms[i].start > 300) booms.erase(i--);
+    // else booms[i].sound.loop();
   }
 }
 
@@ -158,7 +160,7 @@ struct Base {
 
   void reset() {
     pos = vec2f(oled.getWidth() / 2 - 16, -32);
-    health = 10;
+    health = 96;
   }
 
   void update() {
@@ -216,6 +218,7 @@ static void draw() {
 }
 
 void asteroids() {
+  Sound music("/asteroids/music.mp3");
   reset();
   while (true) {
     if (buttonY.released) return;
@@ -227,6 +230,7 @@ void asteroids() {
 
     draw();
     nextFrame();
+    if (!music.loop()) music = Sound("/asteroids/music.mp3");
 
     if (boss.health <= 0) {
       delay(300);
@@ -276,4 +280,6 @@ void asteroids() {
     draw();
     nextFrame();
   }
+
+  playVideo("/Never Gonna Give You Up");
 }
