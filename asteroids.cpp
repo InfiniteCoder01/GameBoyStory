@@ -30,7 +30,7 @@ static const uint8_t PROGMEM inactivePortal[] = {
 }
 
 static uint16_t score;
-static const uint16_t DEATH_SCREEN_SCORE = 32;
+static const uint16_t DEATH_SCREEN_SCORE = 32, BOSS_SCORE = 35;
 
 template<typename T>
 static const T progress(T start, T end) {
@@ -38,15 +38,17 @@ static const T progress(T start, T end) {
 }
 
 static bool collides(vec2i start1, vec2i size1, vec2i start2, vec2i size2) {
-  const auto aabb = [] (const auto start1, const auto end1, const auto start2, const auto end2) { return start1 < end2 && start2 < end1; };
+  const auto aabb = [](const auto start1, const auto end1, const auto start2, const auto end2) {
+    return start1 < end2 && start2 < end1;
+  };
   const auto end1 = start1 + size1, end2 = start2 + size2;
-  return aabb(start1, end1, start2, end2) ||
-         aabb(start1 - vec2i(oled.getWidth(), 0), end1 - vec2i(oled.getWidth(), 0), start2, end2) ||
-         aabb(start1, end1, start2 - vec2i(oled.getWidth(), 0), end2 - vec2i(oled.getWidth(), 0));
+  return aabb(start1, end1, start2, end2) || aabb(start1 - vec2i(oled.getWidth(), 0), end1 - vec2i(oled.getWidth(), 0), start2, end2) || aabb(start1, end1, start2 - vec2i(oled.getWidth(), 0), end2 - vec2i(oled.getWidth(), 0));
 }
 
 static bool collidesPoint(vec2i start, vec2i size, vec2i point) {
-  const auto inside = [] (const auto start, const auto end, const auto point) { return point >= start && point < end; };
+  const auto inside = [](const auto start, const auto end, const auto point) {
+    return point >= start && point < end;
+  };
   const auto end = start + size;
   return inside(start, end, point) || inside(start - vec2i(oled.getWidth(), 0), end - vec2i(oled.getWidth(), 0), point);
 }
@@ -56,7 +58,8 @@ struct Boom {
   uint32_t start;
 
   Boom() = default;
-  Boom(vec2i pos) : pos(pos), start(millis()) {}
+  Boom(vec2i pos)
+    : pos(pos), start(millis()) {}
 };
 
 static Vector<Boom> booms;
@@ -66,7 +69,21 @@ static void updateBooms() {
   }
 }
 
-static Vector<vec2f> bullets;
+struct Bullet {
+  vec2f pos, vel;
+};
+
+static Vector<Bullet> bullets;
+static void updateBullets() {
+  for (int i = 0; i < bullets.size(); i++) {
+    bullets[i].pos += bullets[i].vel * deltaTime;
+    if (bullets[i].pos.x < 0) bullets[i].pos.x += oled.getWidth();
+    else if (bullets[i].pos.x >= oled.getWidth()) bullets[i].pos.x -= oled.getWidth();
+
+    if (bullets[i].pos.y > oled.getHeight()) bullets.erase(i--);
+  }
+}
+
 static struct {
   vec2f pos, velocity;
   bool alive;
@@ -76,19 +93,21 @@ static struct {
     alive = true;
   }
 
-  void update() {
+  void update(bool explore = false) {
     const auto speed = progress(40, 100);
     velocity += ((vec2f)joy * speed - velocity) * deltaTime * 7.f;
-    velocity.y = 0.0;
+    if (!explore) velocity.y = 0.0;
     pos += velocity * deltaTime;
     if (pos.x < 0) pos.x += oled.getWidth();
     else if (pos.x >= oled.getWidth()) pos.x -= oled.getWidth();
+    pos.y = constrain(pos.y, 0, oled.getHeight() - 16);
 
-    if (buttonX.pressed) bullets.push_back(pos + vec2f(8, 0));
-  
-    for (int i = 0; i < bullets.size(); i++) {
-      bullets[i].y -= deltaTime * 70;
-      if (bullets[i].y < 0) bullets.erase(i--);
+    if (!explore && buttonX.pressed) {
+      bullets.push_back(Bullet {
+        .pos = pos + vec2f(8, 0),
+        .vel = velocity * 0.5 + vec2i(0, -70.0),
+      });
+      if (bullets.back().pos.x >= oled.getWidth()) bullets.back().pos.x -= oled.getWidth();
     }
   }
 } tank;
@@ -100,12 +119,12 @@ struct Asteroid {
 static Vector<Asteroid> asteroidsList;
 static void updateAsteroids() {
   static uint32_t spawnTimer;
-  const auto spawnRate = progress(1000, 40);
+  const auto spawnRate = score >= BOSS_SCORE ? 500 : progress(500, 55);
   if (millis() - spawnTimer > spawnRate) {
-    const auto maxhspeed = progress(3, 15);
+    const auto maxhspeed = progress(15, 30);
     asteroidsList.push_back({
       .pos = vec2f(random(oled.getWidth() - 16), -16),
-      .vel = vec2f(random(-maxhspeed, maxhspeed), progress(10, 50) + random(-3, 3)),
+      .vel = vec2f(random(-maxhspeed, maxhspeed), progress(30, 60) + random(-3, 3)),
     });
     spawnTimer = millis();
   }
@@ -116,11 +135,11 @@ static void updateAsteroids() {
     if (asteroidsList[i].pos.x < 0) asteroidsList[i].pos.x += oled.getWidth();
     else if (asteroidsList[i].pos.x >= oled.getWidth()) asteroidsList[i].pos.x -= oled.getWidth();
 
-    if (asteroidsList[i].pos.y > oled.getHeight()) asteroidsList.erase(i--);
+    if (asteroidsList[i].pos.y >= oled.getHeight()) asteroidsList.erase(i--);
     else {
       if (collides(asteroidsList[i].pos, 16, tank.pos, 16)) tank.alive = false;
       for (int j = 0; j < bullets.size(); j++) {
-        if (collidesPoint(asteroidsList[i].pos, 16, bullets[j])) {
+        if (collidesPoint(asteroidsList[i].pos, 16, bullets[j].pos)) {
           score++;
           booms.push_back(Boom(asteroidsList[i].pos));
           asteroidsList.erase(i--);
@@ -132,24 +151,62 @@ static void updateAsteroids() {
   }
 }
 
+struct Base {
+  vec2f pos;
+  int health;
+  uint32_t lastDamaged = 0;
+
+  void reset() {
+    pos = vec2f(oled.getWidth() / 2 - 16, -32);
+    health = 10;
+  }
+
+  void update() {
+    pos +=  30.0 * deltaTime;
+    if (pos.x < 0) pos.x += oled.getWidth();
+    else if (pos.x >= oled.getWidth()) pos.x -= oled.getWidth();
+  
+    if (pos.y >= oled.getHeight()) pos.y -= oled.getHeight() + 32;
+    else {
+      if (collides(pos, 32, tank.pos, 16)) tank.alive = false;
+      for (int j = 0; j < bullets.size(); j++) {
+        if (collidesPoint(pos, 32, bullets[j].pos)) {
+          health--;
+          booms.push_back(Boom(bullets[j].pos));
+          bullets.erase(j--);
+          lastDamaged = millis();
+        }
+      }
+    }
+  }
+};
+
+static Base boss;
+
 static void reset() {
   score = 0;
   bullets.clear();
   asteroidsList.clear();
   booms.clear();
   tank.reset();
+  boss.reset();
 }
 
 static void draw() {
   oled.clear();
-  for (auto& bullet : bullets) oled.fillRect(bullet - 1, vec2i(3), WHITE);
-  for (auto& asteroid : asteroidsList) {
+  for (const auto& bullet : bullets) oled.fillRect(bullet.pos - 1, vec2i(3), WHITE);
+  for (const auto& asteroid : asteroidsList) {
     oled.drawImage(asteroid.pos, vec2i(16), art::asteroid, MAGENTA);
     oled.drawImage(asteroid.pos - vec2i(oled.getWidth(), 0), vec2i(16), art::asteroid, MAGENTA);
   }
+  if (score >= BOSS_SCORE) {
+    const auto img = millis() - boss.lastDamaged < 100 ? art::baseDamage : art::base;
+    oled.drawImage(boss.pos, vec2i(32), img, MAGENTA);
+    oled.drawImage(boss.pos - vec2i(oled.getWidth(), 0), vec2i(32), img, MAGENTA);
+  }
   oled.drawImage(tank.pos, vec2i(16, 16), art::tank, MAGENTA);
   oled.drawImage(tank.pos - vec2i(oled.getWidth(), 0), vec2i(16, 16), art::tank, MAGENTA);
-  for (auto boom : booms) {
+  for (const auto &boom : booms) {
     oled.drawImage(boom.pos, vec2i(16), art::boom + 16 * 16 * 2 * (millis() - boom.start > 150), MAGENTA);
     oled.drawImage(boom.pos - vec2i(oled.getWidth(), 0), vec2i(16), art::boom + 16 * 16 * 2 * (millis() - boom.start > 150), MAGENTA);
   }
@@ -163,46 +220,35 @@ void asteroids() {
   while (true) {
     if (buttonY.released) return;
     tank.update();
+    updateBullets();
     updateAsteroids();
+    if (score >= BOSS_SCORE) boss.update();
     updateBooms();
-
-  //   if (gameState == GameState::BOSS_FIGHT) {
-  //     static int velX = 20;
-  //     basep.x += velX * deltaTime;
-  //     if (basep.x < 0 || basep.x > oled::width - 32) velX *= -1, basep.x += velX * deltaTime * 2;
-  //     basep.y += deltaTime * 30;
-  //     if (basep.y > oled::height) basep.y = -32;
-  //     if (pos + 16 > basep && pos < basep + 32) gameOver();
-  //   } else if (gameState == GameState::EXPLORE && pos + 16 > basep && pos < basep + 32) {
-  //     // TODO!
-  //   }
-  // #pragma endregion Opponents
-  // #pragma region GameOverAndWin
-  //   for (int i = 0; i < booms.size(); i++) {
-  //     booms[i].second -= deltaTime;
-  //     if (booms[i].second < 0) booms.erase(i--);
-  //   }
-
-  //   if (winTimer > 0) {  // Win Animation
-  //     winTimer = max(winTimer - deltaTime, 0.f);
-  //     if (int((winTimer + deltaTime) * 16) != int(winTimer * 16)) {
-  //       booms.push_back(Pair<vec2i, float>(basep + vec2i(random(32), random(32)) - 8, BOOM_TIME));
-  //     }
-  //     if (winTimer <= 0) gameState = GameState::EXPLORE;
-  //   }
-  //   if (gameOverTimer > 0) {  // Game Over Animation
-  //     gameOverTimer -= deltaTime;
-  //     if (int((gameOverTimer + deltaTime) * 16) != int(gameOverTimer * 16) && gameOverTimer > 0.5) {
-  //       booms.push_back(Pair<vec2i, float>(pos + vec2i(random(16), random(16)) - 8, BOOM_TIME));
-  //     }
-  //     if (gameOverTimer <= 0) return start();
-  //   }
-  // #pragma endregion GameOverAndWin
 
     draw();
     nextFrame();
 
-    if (!tank.alive) {
+    if (boss.health <= 0) {
+      delay(300);
+      size_t remaining = 40;
+      while (remaining > 0 || !asteroidsList.empty() || !booms.empty()) {
+        if (remaining > 0) {
+          remaining--;
+          booms.push_back(Boom(boss.pos + vec2i(random(32), random(32)) - vec2i(8)));
+        }
+        if (!asteroidsList.empty()) {
+          booms.push_back(Boom(asteroidsList.back().pos));
+          asteroidsList.pop_back();
+        }
+
+        updateBullets();
+        updateBooms();
+        draw();
+        nextFrame();
+      }
+      delay(300);
+      break;
+    } else if (!tank.alive) {
       delay(300);
       size_t remaining = 40;
       while (remaining > 0 || !booms.empty()) {
@@ -211,6 +257,7 @@ void asteroids() {
           booms.push_back(Boom(tank.pos + vec2i(random(16), random(16)) - vec2i(8)));
         }
 
+        updateBullets();
         updateBooms();
         draw();
         nextFrame();
@@ -218,5 +265,15 @@ void asteroids() {
       delay(300);
       reset();
     }
+  }
+
+  // Explore mode
+  while (true) {
+    if (buttonY.released) return;
+    tank.update(true);
+    if (collides(boss.pos, 32, tank.pos, 16) && buttonX.pressed) break;
+
+    draw();
+    nextFrame();
   }
 }
